@@ -2,9 +2,10 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🌊 Previsão de Clima e Marés - Recife</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.min.js"></script>
 </head>
 <body>
   <header>
@@ -18,11 +19,11 @@
       <div class="data-item">🌡️ Temperatura: <span id="temperatura">--</span>°C</div>
       <div class="data-item">🌧️ Chuva: <span id="chuva">--</span>mm</div>
       <div class="data-item">💧 Umidade: <span id="umidade">--</span>%</div>
-      <div class="data-item">💨 Vento: <span id="vento">--</span> km/h</div>
+      <div class="data-item">💨 Vento: <span id="vento">--</span>km/h</div>
     </section>
     <section id="mares">
       <h2>Marés</h2>
-      <div class="data-item">🌊 Maré Atual: <span id="mare-atual">--</span>m</div>
+      <div class="data-item">🌊 Maré Atual: <span id="mare-atual">--</span>m <span id="mare-status"></span></div>
       <div class="data-item">Próxima Maré: <span id="proxima-mare">--</span></div>
     </section>
     <section id="risco">
