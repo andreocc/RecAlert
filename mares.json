@@ -1,0 +1,10 @@
+{
+    "mare_atual": { "altura": "1.8", "status": "enchente" },
+    "proxima_mare": { "tipo": "alta", "altura": "2.2", "hora": "20:00" },
+    "horas": [
+      { "hora": "00:00", "altura": 0.5 },
+      { "hora": "06:00", "altura": 1.8 },
+      { "hora": "12:00", "altura": 0.6 },
+      { "hora": "18:00", "altura": 2.0 }
+    ]
+  }
