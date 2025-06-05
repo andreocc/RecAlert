@@ -4,11 +4,28 @@ document.addEventListener('DOMContentLoaded', () => {
     atualizarDados(); // Carrega dados iniciais
   
     async function atualizarDados() {
+      let statusMessage = `Última atualização: ${new Date().toLocaleString('pt-BR')}`;
       try {
-        // Obter dados de clima da Open-Meteo
-        const climaResponse = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-8.05&longitude=-34.88&hourly=temperature_2m,precipitation,relative_humidity_2m,windspeed_10m&timezone=America%2FSao_Paulo');
-        if (!climaResponse.ok) throw new Error(`Erro na API de clima: ${climaResponse.status}`);
-        const climaData = await climaResponse.json();
+        // Tentar obter dados de clima da Open-Meteo
+        let climaData;
+        try {
+          const climaResponse = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-8.05&longitude=-34.88&hourly=temperature_2m,precipitation,relative_humidity_2m,windspeed_10m&timezone=America%2FSao_Paulo');
+          if (!climaResponse.ok) throw new Error('Falha na API de clima');
+          climaData = await climaResponse.json();
+          localStorage.setItem('clima_data', JSON.stringify(climaData)); // Salvar no localStorage
+        } catch (error) {
+          console.error('Erro na API de clima:', error);
+          const savedClima = localStorage.getItem('clima_data');
+          if (savedClima) {
+            climaData = JSON.parse(savedClima);
+            statusMessage += ' (Dados salvos)';
+          } else {
+            climaData = await fetch('clima_fallback.json').then(res => res.json());
+            statusMessage += ' (Dados estáticos)';
+          }
+        }
+  
+        // Processar dados de clima
         const now = new Date();
         const currentHourIndex = climaData.hourly.time.findIndex(t => new Date(t) >= now);
         const climaAtual = {
@@ -17,16 +34,23 @@ document.addEventListener('DOMContentLoaded', () => {
           umidade: climaData.hourly.relative_humidity_2m[currentHourIndex] || '--',
           vento: climaData.hourly.windspeed_10m[currentHourIndex] || '--'
         };
-        document.getElementById('temperatura').textContent = climaAtual.temperatura;
-        document.getElementById('chuva').textContent = climaAtual.chuva;
-        document.getElementById('umidade').textContent = climaAtual.umidade;
-        document.getElementById('vento').textContent = climaAtual.vento;
+        document.getElementById('temperatura').textContent = `${climaAtual.temperatura}°C`;
+        document.getElementById('chuva').textContent = `${climaAtual.chuva}mm`;
+        document.getElementById('umidade').textContent = `${climaAtual.umidade}%`;
+        document.getElementById('vento').textContent = `${climaAtual.vento}km/h`;
   
-        // Obter dados estáticos de marés
-        const maresResponse = await fetch('mares.json');
-        if (!maresResponse.ok) throw new Error(`Erro ao carregar mares.json: ${maresResponse.status}`);
-        const maresData = await maresResponse.json();
-        document.getElementById('mare-atual').textContent = maresData.mare_atual.altura;
+        // Tentar obter dados de marés
+        let maresData;
+        try {
+          const maresResponse = await fetch('mares.json');
+          if (!maresResponse.ok) throw new Error('Falha ao carregar marés');
+          maresData = await maresResponse.json();
+        } catch (error) {
+          console.error('Erro ao carregar marés:', error);
+          maresData = await fetch('mares_fallback.json').then(res => res.json());
+          statusMessage += ' (Marés estáticas)';
+        }
+        document.getElementById('mare-atual').textContent = `${maresData.mare_atual.altura}m`;
         document.getElementById('mare-status').textContent = `(${maresData.mare_atual.status})`;
         document.getElementById('proxima-mare').textContent = `${maresData.proxima_mare.tipo} ${maresData.proxima_mare.altura}m às ${maresData.proxima_mare.hora}`;
   
@@ -46,32 +70,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const motivosList = document.getElementById('motivos-risco');
         motivosList.innerHTML = motivos.length ? motivos.map(m => `<li>${m}</li>`).join('') : '<li>Sem motivos significativos</li>';
   
-        // Renderizar gráfico de marés
-        const ctx = document.getElementById('chart-mare').getContext('2d');
-        if (window.mareChart) window.mareChart.destroy(); // Evita múltiplos gráficos
-        window.mareChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: maresData.horas.map(h => h.hora),
-            datasets: [{
-              label: 'Altura da Maré (m)',
-              data: maresData.horas.map(h => h.altura),
-              borderColor: '#64B5F6',
-              backgroundColor: 'rgba(100, 181, 246, 0.2)',
-              fill: true
-            }]
-          },
-          options: {
-            responsive: true,
-            scales: { y: { beginAtZero: true, title: { display: true, text: 'Altura (m)' } } }
-          }
-        });
+        // Renderizar gráfico de marés (se Chart.js estiver disponível)
+        const ctx = document.getElementById('chart-mare')?.getContext('2d');
+        if (ctx && window.Chart) {
+          if (window.mareChart) window.mareChart.destroy();
+          window.mareChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: maresData.horas.map(h => h.hora),
+              datasets: [{
+                label: 'Altura da Maré (m)',
+                data: maresData.horas.map(h => h.altura),
+                borderColor: '#64B5F6',
+                backgroundColor: 'rgba(100, 181, 246, 0.2)',
+                fill: true
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: { y: { beginAtZero: true, title: { display: true, text: 'Altura (m)' } } }
+            }
+          });
+        }
   
-        // Atualizar data e hora
-        document.getElementById('last-update').textContent = `Última atualização: ${now.toLocaleString('pt-BR')}`;
+        // Atualizar status
+        document.getElementById('last-update').textContent = statusMessage;
       } catch (error) {
-        console.error('Erro ao atualizar dados:', error);
-        document.getElementById('last-update').textContent = `Erro: ${error.message}`;
+        console.error('Erro crítico:', error);
+        document.getElementById('last-update').textContent = `Erro ao carregar dados: ${error.message}. Usando dados estáticos.`;
       }
     }
   });
