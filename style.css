@@ -1,0 +1,138 @@
+/* Estilos personalizados para o Monitor de Maré e Clima - Recife */
+
+/* Tema escuro geral */
+.main {
+    background-color: #1E1E1E;
+    color: #FFFFFF;
+}
+
+.stApp {
+    background-color: #1E1E1E;
+}
+
+/* Cabeçalhos */
+h1, h2, h3 {
+    color: #3498DB !important;
+}
+
+/* Botões */
+.stButton > button {
+    background-color: #3498DB;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    transition: background-color 0.3s;
+}
+
+.stButton > button:hover {
+    background-color: #2980B9;
+}
+
+/* Botão de alerta (vermelho) */
+.stButton.primary > button {
+    background-color: #E74C3C;
+}
+
+.stButton.primary > button:hover {
+    background-color: #C0392B;
+}
+
+/* Métricas */
+.css-1xarl3l {
+    background-color: #2D2D2D;
+    padding: 1rem;
+    border-radius: 5px;
+    border-left: 4px solid #3498DB;
+}
+
+/* Sidebar */
+.css-1d391kg {
+    background-color: #2D2D2D;
+}
+
+/* Inputs */
+.stTextInput > div > div > input {
+    background-color: #383838;
+    color: white;
+    border: 1px solid #555555;
+}
+
+/* Separadores */
+hr {
+    border-color: #555555;
+}
+
+/* Níveis de risco */
+.risk-low {
+    background-color: #2ECC71;
+    color: black;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.risk-medium {
+    background-color: #F39C12;
+    color: black;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.risk-high {
+    background-color: #E74C3C;
+    color: white;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+/* Cards para dados */
+.data-card {
+    background-color: #2D2D2D;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+
+/* Gráficos */
+.stPlotlyChart {
+    background-color: #2D2D2D;
+    border-radius: 5px;
+    padding: 1rem;
+}
+
+/* Tabelas */
+.dataframe {
+    background-color: #2D2D2D;
+}
+
+.dataframe th {
+    background-color: #383838;
+    color: #3498DB;
+}
+
+.dataframe td {
+    background-color: #2D2D2D;
+}
+
+/* Tooltips e mensagens */
+.stTooltipIcon {
+    color: #3498DB;
+}
+
+/* Ajustes para dispositivos móveis */
+@media (max-width: 768px) {
+    .data-card {
+        padding: 0.5rem;
+    }
+    
+    h1 {
+        font-size: 1.5rem !important;
+    }
+    
+    h2 {
+        font-size: 1.2rem !important;
+    }
+}
