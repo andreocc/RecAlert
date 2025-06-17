@@ -84,4 +84,4 @@ def calcula_risco(precip, altura_mare):
     if pts >= 2: return "MODERADO", reasons
     return "BAIXO", reasons
 
-weather = get_weather_d
+weather = get_weather_data()
