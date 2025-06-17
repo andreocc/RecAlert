@@ -1,104 +1,143 @@
 import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
+import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import time
+import pandas as pd
 
 st.set_page_config(page_title="🌊 Previsão de Clima e Marés - Recife", layout="wide")
 st.title("🌊 Previsão de Clima e Marés - Recife")
 
-def get_tide_data_selenium():
-    url = "https://pt.tideschart.com/Brazil/Pernambuco/Recife/"
-
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-dev-shm-usage")
-
-    driver = webdriver.Chrome(options=options)
-    driver.get(url)
-
+@st.cache_data(ttl=3600)
+def get_weather_data():
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        "?latitude=-8.05&longitude=-34.88"
+        "&hourly=temperature_2m,precipitation,relative_humidity_2m,windspeed_10m"
+        "&timezone=America%2FSao_Paulo"
+    )
     try:
-        wait = WebDriverWait(driver, 15)
-        table = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "tide-chart-table")))
-    except TimeoutException:
-        st.error("Timeout: tabela de marés não carregou na página.")
-        driver.quit()
-        return None
-    except NoSuchElementException:
-        st.error("Erro: tabela de marés não encontrada na página.")
-        driver.quit()
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        st.error(f"Erro ao buscar clima: {e}")
         return None
 
-    rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # pula o cabeçalho
-
-    previsao = []
-    for row in rows:
-        cols = row.find_elements(By.TAG_NAME, "td")
-        if len(cols) < 3:
-            continue
-        hora = cols[0].text.strip()
-        altura_str = cols[1].text.strip().replace(",", ".")
-        tipo = cols[2].text.strip()
-        try:
-            altura = float(altura_str)
-        except ValueError:
-            continue
-        previsao.append({
-            "hora": hora,
-            "altura": altura,
-            "tipo": tipo
-        })
-
-    driver.quit()
-
-    if not previsao:
-        st.warning("Tabela de marés está vazia.")
-        return None
-
-    now = datetime.now().strftime("%H:%M")
-    mare_atual = None
-    proxima_mare = None
-    for i, p in enumerate(previsao):
-        if p["hora"] >= now:
-            mare_atual = p
-            proxima_mare = previsao[i + 1] if i + 1 < len(previsao) else p
-            break
-    if not mare_atual:
-        mare_atual = previsao[-1]
-        proxima_mare = mare_atual
-
-    return {
-        "mare_atual": mare_atual,
-        "proxima_mare": proxima_mare,
-        "previsao": previsao
+@st.cache_data(ttl=3600)
+def get_tide_data():
+    url = "https://pt.tideschart.com/Brazil/Pernambuco/Recife/"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                      " AppleWebKit/537.36 (KHTML, like Gecko)"
+                      " Chrome/114.0.0.0 Safari/537.36"
     }
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        
+        # Tenta achar a tabela com as marés
+        table = soup.find("table", class_="tide-chart-table")
+        if not table:
+            st.warning("Tabela de maré não encontrada na página. Pode estar carregada via JavaScript.")
+            return None
+        
+        rows = table.find_all("tr")[1:]  # Pula o cabeçalho
+        previsao = []
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) < 3:
+                continue
+            hora = cols[0].get_text(strip=True)
+            altura_str = cols[1].get_text(strip=True).replace(",", ".")
+            tipo = cols[2].get_text(strip=True)
+            try:
+                altura = float(altura_str)
+            except:
+                continue
+            previsao.append({"hora": hora, "altura": altura, "tipo": tipo})
+        
+        if not previsao:
+            st.warning("Nenhum dado válido encontrado na tabela.")
+            return None
+        
+        now = datetime.now().strftime("%H:%M")
+        mare_atual = None
+        proxima_mare = None
+        
+        for i, p in enumerate(previsao):
+            if p["hora"] >= now:
+                mare_atual = p
+                proxima_mare = previsao[i+1] if i+1 < len(previsao) else p
+                break
+        
+        if not mare_atual:
+            mare_atual = previsao[-1]
+            proxima_mare = mare_atual
+        
+        return {
+            "mare_atual": mare_atual,
+            "proxima_mare": proxima_mare,
+            "previsao": previsao
+        }
+    except Exception as e:
+        st.error(f"Erro ao buscar maré: {e}")
+        return None
 
-# Chamando no Streamlit
+def calcula_risco(precip, altura_mare):
+    pts, reasons = 0, []
+    if precip > 30:
+        pts += 3
+        reasons.append("🌧️ Chuva alta")
+    elif precip > 10:
+        pts += 1
+        reasons.append("🌧️ Chuva moderada")
+    if altura_mare > 2:
+        pts += 2
+        reasons.append("🌊 Maré alta")
+    elif altura_mare > 1.5:
+        pts += 1
+        reasons.append("🌊 Maré moderada")
+    if precip > 10 and altura_mare > 1.5:
+        pts += 2
+        reasons.append("🌧️🌊 Combinado")
+    if pts >= 5:
+        return "ALTO", reasons
+    if pts >= 2:
+        return "MODERADO", reasons
+    return "BAIXO", reasons
 
-tide_data = get_tide_data_selenium()
+weather = get_weather_data()
+tide = get_tide_data()
 
-if tide_data:
-    st.subheader("Marés")
-    st.write(f"Maré Atual: {tide_data['mare_atual']['altura']}m ({tide_data['mare_atual']['tipo']}) às {tide_data['mare_atual']['hora']}")
-    st.write(f"Próxima Maré: {tide_data['proxima_mare']['altura']}m ({tide_data['proxima_mare']['tipo']}) às {tide_data['proxima_mare']['hora']}")
+if weather:
+    st.subheader("Previsão Climática (hoje)")
+    df_weather = pd.DataFrame({
+        "Hora": weather["hourly"]["time"],
+        "Temperatura (°C)": weather["hourly"]["temperature_2m"],
+        "Precipitação (mm)": weather["hourly"]["precipitation"],
+        "Umidade (%)": weather["hourly"]["relative_humidity_2m"],
+        "Vento (km/h)": weather["hourly"]["windspeed_10m"],
+    })
+    df_weather["Hora"] = pd.to_datetime(df_weather["Hora"]).dt.strftime("%H:%M")
+    st.dataframe(df_weather.head(24))
 
-    df = pd.DataFrame(tide_data['previsao'])
-    df['hora_dt'] = pd.to_datetime(df['hora'], format='%H:%M')
-    fig, ax = plt.subplots()
-    ax.plot(df['hora_dt'], df['altura'], marker='o', linestyle='-', color='blue')
-    ax.set_xlabel('Hora')
-    ax.set_ylabel('Altura (m)')
-    ax.set_title('Previsão de Maré')
-    ax.grid(True, linestyle='--', alpha=0.6)
-    st.pyplot(fig)
+if tide:
+    st.subheader("Previsão de Maré - Hoje")
+    st.write(f"Mare atual: {tide['mare_atual']['hora']} - {tide['mare_atual']['altura']}m ({tide['mare_atual']['tipo']})")
+    st.write(f"Próxima mare: {tide['proxima_mare']['hora']} - {tide['proxima_mare']['altura']}m ({tide['proxima_mare']['tipo']})")
+
+    df_tide = pd.DataFrame(tide["previsao"])
+    st.line_chart(df_tide.set_index("hora")["altura"])
+
+    # Risco combinando chuva e maré
+    try:
+        precip_now = weather["hourly"]["precipitation"][0]
+        altura_now = tide['mare_atual']['altura']
+        nivel_risco, motivos = calcula_risco(precip_now, altura_now)
+        st.subheader(f"Nível de risco: {nivel_risco}")
+        st.write(", ".join(motivos))
+    except Exception:
+        pass
 else:
-    st.warning("Não foi possível obter dados de maré.")
+    st.warning("Dados de maré indisponíveis.")
