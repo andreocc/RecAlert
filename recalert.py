@@ -40,7 +40,7 @@ st.set_page_config(
     menu_items={
         # 'Get Help': 'https://www.extremelycoolapp.com/help',
         # 'Report a bug': "https://www.extremelycoolapp.com/bug",
-        # 'About': "# Monitor de Maré e Clima - Recife\nDesenvolvido por Manus AI"
+        # 'About': "# Monitor de Maré e Clima - Recife\nDesenvolvido por www.alphaworks.com.br"
     }
 )
 
