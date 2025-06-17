@@ -1,143 +1,120 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
 import pandas as pd
+import matplotlib.pyplot as plt
+import requests
+from datetime import datetime, timedelta
+import pytz
 
 st.set_page_config(page_title="🌊 Previsão de Clima e Marés - Recife", layout="wide")
 st.title("🌊 Previsão de Clima e Marés - Recife")
 
-@st.cache_data(ttl=3600)
-def get_weather_data():
-    url = (
-        "https://api.open-meteo.com/v1/forecast"
-        "?latitude=-8.05&longitude=-34.88"
-        "&hourly=temperature_2m,precipitation,relative_humidity_2m,windspeed_10m"
-        "&timezone=America%2FSao_Paulo"
-    )
-    try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        st.error(f"Erro ao buscar clima: {e}")
-        return None
-
-@st.cache_data(ttl=3600)
+# Função para obter dados de maré via API
 def get_tide_data():
-    url = "https://pt.tideschart.com/Brazil/Pernambuco/Recife/"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-                      " AppleWebKit/537.36 (KHTML, like Gecko)"
-                      " Chrome/114.0.0.0 Safari/537.36"
-    }
+    # Define o fuso horário do Recife
+    tz = pytz.timezone('America/Recife')
+    hoje = datetime.now(tz).strftime("%Y%m%d")
+    
+    # URL da API com os dados das marés
+    url = f"https://pt.tideschart.com/tides/brazil/pernambuco/recife/?period={hoje}"
+    
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        response = requests.get(url)
+        response.raise_for_status()  # Verifica erros na requisição
+        dados = response.json()
         
-        # Tenta achar a tabela com as marés
-        table = soup.find("table", class_="tide-chart-table")
-        if not table:
-            st.warning("Tabela de maré não encontrada na página. Pode estar carregada via JavaScript.")
-            return None
+        # Extrai os dados de maré do dia atual
+        data_str = datetime.now(tz).strftime("%Y-%m-%d")
+        mare_dia = dados['tides'][data_str]
         
-        rows = table.find_all("tr")[1:]  # Pula o cabeçalho
         previsao = []
-        for row in rows:
-            cols = row.find_all("td")
-            if len(cols) < 3:
-                continue
-            hora = cols[0].get_text(strip=True)
-            altura_str = cols[1].get_text(strip=True).replace(",", ".")
-            tipo = cols[2].get_text(strip=True)
-            try:
-                altura = float(altura_str)
-            except:
-                continue
-            previsao.append({"hora": hora, "altura": altura, "tipo": tipo})
+        for evento in mare_dia:
+            hora = evento['time']
+            # Remove a unidade 'm' e converte para float
+            altura = float(evento['height'].replace('m', ''))
+            tipo = evento['type']
+            
+            previsao.append({
+                "hora": hora,
+                "altura": altura,
+                "tipo": tipo
+            })
         
-        if not previsao:
-            st.warning("Nenhum dado válido encontrado na tabela.")
-            return None
-        
-        now = datetime.now().strftime("%H:%M")
+        # Encontra a maré atual e próxima
+        agora = datetime.now(tz).strftime("%H:%M")
         mare_atual = None
         proxima_mare = None
         
-        for i, p in enumerate(previsao):
-            if p["hora"] >= now:
-                mare_atual = p
-                proxima_mare = previsao[i+1] if i+1 < len(previsao) else p
+        for i, evento in enumerate(previsao):
+            if evento["hora"] >= agora:
+                mare_atual = evento
+                if i + 1 < len(previsao):
+                    proxima_mare = previsao[i + 1]
+                else:
+                    # Se não houver próxima maré hoje, busca no próximo dia
+                    amanha = (datetime.now(tz) + timedelta(days=1)).strftime("%Y%m%d")
+                    url_amanha = f"https://pt.tideschart.com/tides/brazil/pernambuco/recife/?period={amanha}"
+                    response_amanha = requests.get(url_amanha)
+                    dados_amanha = response_amanha.json()
+                    data_amanha_str = (datetime.now(tz) + timedelta(days=1)).strftime("%Y-%m-%d")
+                    primeira_mare_amanha = dados_amanha['tides'][data_amanha_str][0]
+                    proxima_mare = {
+                        "hora": primeira_mare_amanha['time'],
+                        "altura": float(primeira_mare_amanha['height'].replace('m', '')),
+                        "tipo": primeira_mare_amanha['type']
+                    }
                 break
         
-        if not mare_atual:
-            mare_atual = previsao[-1]
-            proxima_mare = mare_atual
-        
         return {
-            "mare_atual": mare_atual,
-            "proxima_mare": proxima_mare,
+            "mare_atual": mare_atual or previsao[-1],
+            "proxima_mare": proxima_mare or previsao[0],
             "previsao": previsao
         }
+        
     except Exception as e:
-        st.error(f"Erro ao buscar maré: {e}")
+        st.error(f"Erro ao obter dados de maré: {str(e)}")
         return None
 
-def calcula_risco(precip, altura_mare):
-    pts, reasons = 0, []
-    if precip > 30:
-        pts += 3
-        reasons.append("🌧️ Chuva alta")
-    elif precip > 10:
-        pts += 1
-        reasons.append("🌧️ Chuva moderada")
-    if altura_mare > 2:
-        pts += 2
-        reasons.append("🌊 Maré alta")
-    elif altura_mare > 1.5:
-        pts += 1
-        reasons.append("🌊 Maré moderada")
-    if precip > 10 and altura_mare > 1.5:
-        pts += 2
-        reasons.append("🌧️🌊 Combinado")
-    if pts >= 5:
-        return "ALTO", reasons
-    if pts >= 2:
-        return "MODERADO", reasons
-    return "BAIXO", reasons
+# Exibição dos dados
+tide_data = get_tide_data()
 
-weather = get_weather_data()
-tide = get_tide_data()
-
-if weather:
-    st.subheader("Previsão Climática (hoje)")
-    df_weather = pd.DataFrame({
-        "Hora": weather["hourly"]["time"],
-        "Temperatura (°C)": weather["hourly"]["temperature_2m"],
-        "Precipitação (mm)": weather["hourly"]["precipitation"],
-        "Umidade (%)": weather["hourly"]["relative_humidity_2m"],
-        "Vento (km/h)": weather["hourly"]["windspeed_10m"],
-    })
-    df_weather["Hora"] = pd.to_datetime(df_weather["Hora"]).dt.strftime("%H:%M")
-    st.dataframe(df_weather.head(24))
-
-if tide:
-    st.subheader("Previsão de Maré - Hoje")
-    st.write(f"Mare atual: {tide['mare_atual']['hora']} - {tide['mare_atual']['altura']}m ({tide['mare_atual']['tipo']})")
-    st.write(f"Próxima mare: {tide['proxima_mare']['hora']} - {tide['proxima_mare']['altura']}m ({tide['proxima_mare']['tipo']})")
-
-    df_tide = pd.DataFrame(tide["previsao"])
-    st.line_chart(df_tide.set_index("hora")["altura"])
-
-    # Risco combinando chuva e maré
-    try:
-        precip_now = weather["hourly"]["precipitation"][0]
-        altura_now = tide['mare_atual']['altura']
-        nivel_risco, motivos = calcula_risco(precip_now, altura_now)
-        st.subheader(f"Nível de risco: {nivel_risco}")
-        st.write(", ".join(motivos))
-    except Exception:
-        pass
+if tide_data:
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🌊 Maré Atual")
+        if tide_data["mare_atual"]:
+            st.metric("Hora", tide_data["mare_atual"]["hora"])
+            st.metric("Altura", f"{tide_data['mare_atual']['altura']} m")
+            st.metric("Tipo", "Preamar" if tide_data["mare_atual"]["tipo"] == "High" else "Baixa-mar")
+        
+    with col2:
+        st.subheader("⏭️ Próxima Maré")
+        if tide_data["proxima_mare"]:
+            st.metric("Hora", tide_data["proxima_mare"]["hora"])
+            st.metric("Altura", f"{tide_data['proxima_mare']['altura']} m")
+            st.metric("Tipo", "Preamar" if tide_data["proxima_mare"]["tipo"] == "High" else "Baixa-mar")
+    
+    # Gráfico das marés
+    st.subheader("📈 Previsão de Marés para Hoje")
+    df = pd.DataFrame(tide_data["previsao"])
+    df['hora'] = pd.to_datetime(df['hora'], format='%H:%M').dt.time
+    
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(df['hora'].astype(str), df['altura'], marker='o')
+    ax.set_xlabel('Hora')
+    ax.set_ylabel('Altura (m)')
+    ax.set_title('Variação das Marés')
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+    
+    # Tabela detalhada
+    st.subheader("📋 Detalhes das Marés")
+    df_display = df.copy()
+    df_display['Tipo'] = df_display['tipo'].apply(lambda x: "Preamar" if x == "High" else "Baixa-mar")
+    st.dataframe(df_display[['hora', 'altura', 'Tipo']].rename(columns={
+        'hora': 'Hora',
+        'altura': 'Altura (m)',
+        'Tipo': 'Tipo de Maré'
+    }))
 else:
-    st.warning("Dados de maré indisponíveis.")
+    st.warning("Não foi possível carregar os dados de maré. Tente novamente mais tarde.")
