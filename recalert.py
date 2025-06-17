@@ -25,7 +25,7 @@ def get_weather_data():
 
 @st.cache_data(ttl=3600)
 def get_tide_data():
-    url = "https://luisaraujo.github.io/api-Tabua-Mare/portos/recife.json"
+    url = "https://luisaraujo.github.io/api-tabua-Mare/portos/recife.json"
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
