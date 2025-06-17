@@ -3,3 +3,4 @@ requests>=2.28
 pandas>=1.5
 matplotlib>=3.7
 beautifulsoup4
+selenium
