@@ -7,7 +7,7 @@ Monitor de Maré e Clima - Recife (Versão Streamlit)
 Aplicação web para monitoramento em tempo real da previsão de chuvas e tábua de marés
 na cidade de Recife, Pernambuco, com avaliação de risco de alagamento e envio de alertas.
 
-Autor: Manus AI
+Autor: Andre Occenstein
 Data: Junho/2025
 """
 
@@ -465,5 +465,5 @@ else:
 
 # --- Rodapé ---
 st.markdown("---")
-st.caption("Monitor de Maré e Clima - Recife | Desenvolvido por Manus AI")
+st.caption("Monitor de Maré e Clima - Recife | Desenvolvido por Andre Occenstein")
 
